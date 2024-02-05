@@ -443,8 +443,26 @@ class XdaDevice():
         timer = 0
         data_out = StringIO()
         while self.recording:
+
             osc_msg = []
-            
+
+            osc_msg.append(self.sensors.nDancers)
+
+            message = oscbuildparse.OSCMessage('/xsens-nDancers', None, osc_msg)           
+            osc_send(message, 'OSC_client')
+            osc_process()      
+
+            osc_msg = []
+
+            osc_msg.append(self.sensors.nSensors)
+
+            message = oscbuildparse.OSCMessage('/xsens-nSensors', None, osc_msg)           
+            osc_send(message, 'OSC_client')
+            osc_process()      
+
+
+            osc_msg = []
+
             if self.callback.packet_available():
                 packet = self.callback.get_next_packet()
                 
@@ -508,16 +526,12 @@ class XdaDevice():
 
                 if packet.containsOrientation():
                     euler = packet.orientationEuler()
-                    euler_value = [euler.x(), euler.y(), euler.z()]/180.0
+                    euler_value = [euler.x()/180.0, euler.y()/180.0, euler.z()/180.0]
                     osc_msg.append(euler_value[0])
                     osc_msg.append(euler_value[1])
                     osc_msg.append(euler_value[2])
                     self.sensors.send_data(sensor_id, 'ori', euler_value)
-                
-                if sensor == 1:
-                    correlations = self.sensors.calculate_correlation()
-                    for corr_value in correlations:
-                        osc_msg.append(round(float(corr_value[1]),5))
+
 
                 message = oscbuildparse.OSCMessage('/xsens', None, osc_msg)
                              
@@ -530,6 +544,43 @@ class XdaDevice():
                     for index, val in enumerate(osc_str):
                         data_out.write(osc_str[index])
                     data_out.write('\n')   
+
+
+                if sensor == 1 and dancer == 1:
+                    osc_msg = []
+
+                    correlations = self.sensors.calculate_correlation_self()
+                    for corr_value in correlations:
+                        osc_msg.append(round(float(corr_value[1]),5))       
+
+                    message = oscbuildparse.OSCMessage('/xsens-correlation-self', None, osc_msg)
+                             
+                    osc_send(message, 'OSC_client')
+                    osc_process()      
+
+                    osc_msg = []
+
+                    ffts = self.sensors.calculate_fft()
+                    for fft in ffts:
+                        for val in fft:
+                            osc_msg.append(round(float(val),5))       
+
+                    message = oscbuildparse.OSCMessage('/xsens-fft', None, osc_msg)
+                             
+                    osc_send(message, 'OSC_client')
+                    osc_process()   
+
+
+                    osc_msg = []
+
+                    correlations = self.sensors.calculate_correlation_others()
+                    for corr_value in correlations:
+                        osc_msg.append(round(float(corr_value[1]),5))       
+
+                    message = oscbuildparse.OSCMessage('/xsens-correlation-others', None, osc_msg)
+                             
+                    osc_send(message, 'OSC_client')
+                    osc_process()   
 
             # Check sensor status and set it to the dashboard.
             self.sensors.status(self.sensors.sensors)

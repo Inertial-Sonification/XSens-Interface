@@ -54,8 +54,11 @@ def dancers(number_of_dancers=1, number_of_sensors=3):
                     for sens in [sensor1, sensor2]:
                         if f'correlation_{current}' not in dancer[sens]:
                             dancer[sens][f'correlation_{current}']={}
-                            for j in range(1, number_of_sensors+1):
-                                dancer[sens][f'correlation_{current}'][f'snsr_{j}'] = [0] * 500
+                            for jj in range(1, number_of_sensors+1):
+                                dancer[sens][f'correlation_{current}'][f'snsr_{jj}'] = [0] * 500
+                            for dancer2 in dancers:
+                                if dancer2 != dancer:
+                                    dancer[sens][f'correlation_{current}'][f'dancer_{jj}'] = [0]*500
 
             
     return dancers
@@ -130,7 +133,7 @@ class Sensors:
         ]
         self.dancers = dancers()
         self.nSensors = len(self.dancers[0])
-
+        self.nDancers = len(self.dancers)
     
     def set_ids(self):
         """set_ids sets sensor IDs to the dashboard and to
@@ -236,8 +239,26 @@ class Sensors:
                    y=self.dancers.dancers[k][f'snsr_{s}'][f'b_{data_type}']
                 )
 
-    def calculate_correlation(self):
+    def calculate_fft(self):
+        fftAll =[]
+
+        for dancer in self.dancers:
+            for i in range(1, self.nSensors+1):
+                sensor1 = f'snsr_{i}'
+                for current in dancer[sensor1]:
+                    if current == 'tot_a' or current == 'b_tot_a' or current == 'rot' or ('correlation' in current):
+                        continue
+                    lenVec1 = len(dancer[sensor1][current])
+                    
+                    if lenVec1 >= 32:
+                        fft = np.fft.rfft(dancer[sensor1][current][lenVec1-32:lenVec1])
+                        fftAll.append(np.abs(fft))
+        return fftAll
+
+
+    def calculate_correlation_self(self):
         out_correlations = []
+        #CORRELATIONS BETWEEN DIFFERENT SENSORS - SAME DANCER
         for dancer in self.dancers:
             for i in range(1, self.nSensors):
                 for j in range(i+1, self.nSensors+1):                
@@ -245,22 +266,58 @@ class Sensors:
                     sensor2 = f'snsr_{j}'
                     
                     for current in dancer[sensor1]:
-
+                        if current == 'tot_a' or current == 'b_tot_a' or current == 'rot':
+                            continue
+                        
                         lenVec1 = len(dancer[sensor1][current])
                         lenVec2 = len(dancer[sensor2][current])
 
                         if lenVec1 >= 32 and lenVec2 >= 32:
-                            correlation = np.correlate( dancer[sensor1][current][lenVec1-32:lenVec1],dancer[sensor2][current][lenVec2-32:lenVec2])
-                            out_correlations.append([current,correlation[0]])
+                            correlation = np.corrcoef( dancer[sensor1][current][lenVec1-32:lenVec1],dancer[sensor2][current][lenVec2-32:lenVec2])
+                            
+                            corrVal = 0
+                            if not (np.isnan(correlation[1][0])):
+                                corrVal = correlation[1][0]
 
-
-                            #if f'correlation_{current}' not in dancer[sensor2]:
-                                #   dancer[sensor2][f'correlation_{current}']={}
-
-                            dancer[sensor1][f'correlation_{current}'][sensor2].append(correlation)
+                            out_correlations.append([current,corrVal])
+                            
+                            dancer[sensor1][f'correlation_{current}'][sensor2].append(corrVal)
                             cutoff = len(dancer[sensor1][f'correlation_{current}'][sensor2]) - 500
                             if cutoff> 0:
                                 del dancer[sensor1][f'correlation_{current}'][sensor2][0]
+        return out_correlations
+
+    def calculate_correlation_others(self):
+        out_correlations = []
+        #CORRELATIONS BETWEEN DIFFERENT SENSORS - SAME DANCER
+        for dancer1 in self.dancers:
+            for dancer2 in self.dancers:
+                if dancer1 != dancer2:
+                    for i in range(1, self.nSensors):
+                                    
+                            sensor1 = f'snsr_{i}'
+                            
+                            for current in dancer1[sensor1]:
+                                if current == 'tot_a' or current == 'b_tot_a' or current == 'rot':
+                                    continue
+                                
+                                lenVec1 = len(dancer1[sensor1][current])
+                                lenVec2 = len(dancer2[sensor1][current])
+
+
+                                if lenVec1 >= 32 and lenVec2 >= 32:
+                                    correlation = np.corrcoef( dancer1[sensor1][current][lenVec1-32:lenVec1],dancer2[sensor1][current][lenVec2-32:lenVec2])
+                                    
+                                    corrVal = 0
+                                    if not (np.isnan(correlation[1][0])):
+                                        corrVal = correlation[1][0]
+
+                                    out_correlations.append([current,corrVal])
+                                    
+                                    dancer1[sensor1][f'correlation_{current}'][f'dancer_{dancer2}'].append(corrVal)
+                                    cutoff = len(dancer1[sensor1][f'correlation_{current}'][f'dancer_{dancer2}']) - 500
+                                    if cutoff> 0:
+                                        del dancer1[sensor1][f'correlation_{current}'][f'dancer_{dancer2}'][0]
         return out_correlations
 
     def status(self, ids=False, finished=False):

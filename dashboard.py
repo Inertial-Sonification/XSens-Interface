@@ -223,21 +223,21 @@ class Dashboard:
                                     x_axis, initial_data, label='pitch', 
                                     tag=f'ori{i}_{j}p', parent=dpg.last_item()
                                 )
-                                dpg.set_axis_limits(item, -180, 180)
+                                dpg.set_axis_limits(item, -1, 1)
                                 item = dpg.add_plot_axis(dpg.mvYAxis)
                                 # Add orientation data in y axis direction.
                                 dpg.add_line_series(
                                     x_axis, initial_data, label='roll', 
                                     tag=f'ori{i}_{j}r', parent=dpg.last_item()
                                 )
-                                dpg.set_axis_limits(item, -180, 180)
+                                dpg.set_axis_limits(item, -1, 1)
                                 item = dpg.add_plot_axis(dpg.mvYAxis)
                                 # Add orientation data in z axis direction.
                                 dpg.add_line_series(
                                     x_axis, initial_data, label='yaw', 
                                     tag=f'ori{i}_{j}y', parent=dpg.last_item()
                                 )
-                                dpg.set_axis_limits(item, -180, 180)
+                                dpg.set_axis_limits(item, -1, 1)
                         with dpg.table_row():
                             # Create plot for gyroscope data.
                             with dpg.plot(

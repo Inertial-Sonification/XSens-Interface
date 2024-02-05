@@ -12,6 +12,9 @@ from osc4py3 import oscbuildparse
 
 import dashboard as db
 
+import os
+cwd = os.getcwd()
+
 #TODO insert GUI element for number of sensors and inserting/selecting sensor ID code (QR)
 
 def osc(server_ip, server_port, client_ip, client_port):
@@ -84,7 +87,7 @@ def main():
         help='Xsens main device: "dongle" or "station".'
     )
    parser.add_argument(
-       '--path', '-p', type=str, default=r'C:\Users\korugaa1\source\repos\sonic_move-main\sonic_move-main\lokit',
+       '--path', '-p', type=str, default=cwd+r'\lokit',
         help='File path for saving log files.'
     )    
    args = parser.parse_args()
