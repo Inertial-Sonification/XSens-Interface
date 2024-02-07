@@ -1,6 +1,6 @@
 Usage:
 
-After downloading this repo create a folder named "lokit" (folder where log files are stored) in the main folder (git doesn't track empty folders, and all file types pertaining to log data are ignored)
+After downloading this repo create a folder named "lokit" (folder where log files are stored) in the main folder (git doesn't track empty folders and all file types pertaining to log data are ignored)
 
 TODO: 
 
