@@ -266,7 +266,7 @@ class Sensors:
                     sensor2 = f'snsr_{j}'
                     
                     for current in dancer[sensor1]:
-                        if current == 'tot_a' or current == 'b_tot_a' or current == 'rot':
+                        if current == 'tot_a' or current == 'b_tot_a' or current == 'rot' or ('correlation' in current):
                             continue
                         
                         lenVec1 = len(dancer[sensor1][current])
@@ -298,7 +298,7 @@ class Sensors:
                             sensor1 = f'snsr_{i}'
                             
                             for current in dancer1[sensor1]:
-                                if current == 'tot_a' or current == 'b_tot_a' or current == 'rot':
+                                if current == 'tot_a' or current == 'b_tot_a' or current == 'rot' or ('correlation' in current):
                                     continue
                                 
                                 lenVec1 = len(dancer1[sensor1][current])
