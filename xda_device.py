@@ -445,7 +445,7 @@ class XdaDevice():
         while self.recording:
 
             osc_msg = []
-
+        
             osc_msg.append(self.sensors.nDancers)
 
             message = oscbuildparse.OSCMessage('/xsens-nDancers', None, osc_msg)           
@@ -477,10 +477,8 @@ class XdaDevice():
                     osc_msg.append(osc_id)
 
                 if packet.containsCalibratedData():
-                    acc = packet.freeAcceleration()
-                    acc_value = self.sensors.scale_data(
-                        sensor_id, 'acc', [acc[0], acc[1], acc[2]]
-                    )
+                    acc = packet.freeAcceleration()/100.0
+                    acc_value = acc
                     acc_value = [round(val, 5) for val in acc_value]
                     tot_acc = [sqrt(acc[0]**2 + acc[1]**2 + acc[2]**2)]
                     check_threshold = tot_acc[0] > self.acc_threshold
@@ -489,49 +487,42 @@ class XdaDevice():
                         timer = time()
                     else:
                         tot_acc.append(0)
-                    osc_msg.append(acc_value[0])
-                    osc_msg.append(acc_value[1])
-                    osc_msg.append(acc_value[2])
+                    osc_msg.append(float(acc_value[0]))
+                    osc_msg.append(float(acc_value[1]))
+                    osc_msg.append(float(acc_value[2]))
                     osc_msg.append(round(tot_acc[0], 5))
                     osc_msg.append(tot_acc[1])
                     self.sensors.send_data(sensor_id, 'acc', acc_value)
                     self.sensors.send_data(sensor_id, 'tot_a', tot_acc)
 
                     gyr = packet.calibratedGyroscopeData()
-                    gyr_value = self.sensors.scale_data(
-                        sensor_id, 'gyr', [gyr[0], gyr[1], gyr[2]]
-                    )
+                    gyr_value = [gyr[0], gyr[1], gyr[2]]
                     rot_value = self.sensors.scale_data(
                         sensor_id, 'rot',
                         [sqrt(gyr[0]**2 + gyr[1]**2 + gyr[2]**2)]
                     )
                     gyr_value = [round(val, 5) for val in gyr_value]
-                    osc_msg.append(gyr_value[0])
-                    osc_msg.append(gyr_value[1])
-                    osc_msg.append(gyr_value[2])
+                    osc_msg.append(float(gyr_value[0]))
+                    osc_msg.append(float(gyr_value[1]))
+                    osc_msg.append(float(gyr_value[2]))
                     osc_msg.append(round(rot_value[0], 5))
                     self.sensors.send_data(sensor_id, 'gyr', gyr_value)
                     self.sensors.send_data(sensor_id, 'rot', rot_value)
 
                     mag = packet.calibratedMagneticField()
-                    mag_value = [
-                        round(val, 5) for val in self.sensors.scale_data(
-                            sensor_id, 'mag', [mag[0], mag[1], mag[2]]
-                        )
-                    ]
-                    osc_msg.append(mag_value[0])
-                    osc_msg.append(mag_value[1])
-                    osc_msg.append(mag_value[2])
+                    mag_value = mag 
+                    osc_msg.append(float(round(mag_value[0],5)))
+                    osc_msg.append(float(round(mag_value[1],5)))
+                    osc_msg.append(float(round(mag_value[2],5)))
                     self.sensors.send_data(sensor_id, 'mag', mag_value)
 
                 if packet.containsOrientation():
                     euler = packet.orientationEuler()
                     euler_value = [euler.x()/180.0, euler.y()/180.0, euler.z()/180.0]
-                    osc_msg.append(euler_value[0])
-                    osc_msg.append(euler_value[1])
-                    osc_msg.append(euler_value[2])
+                    osc_msg.append(float(euler_value[0]))
+                    osc_msg.append(float(euler_value[1]))
+                    osc_msg.append(float(euler_value[2]))
                     self.sensors.send_data(sensor_id, 'ori', euler_value)
-
 
                 message = oscbuildparse.OSCMessage('/xsens', None, osc_msg)
                              

@@ -166,21 +166,21 @@ class Dashboard:
                                     x_axis, initial_data, label='x', 
                                     tag=f'acc{i}_{j}x', parent=dpg.last_item()
                                 )
-                                dpg.set_axis_limits(item, 0, 1)
+                                dpg.set_axis_limits(item, -1, 1)
                                 item = dpg.add_plot_axis(dpg.mvYAxis)
                                 # Add acceleration data in y axis direction.
                                 dpg.add_line_series(
                                     x_axis, initial_data, label='y', 
                                     tag=f'acc{i}_{j}y', parent=dpg.last_item()
                                 )
-                                dpg.set_axis_limits(item, 0, 1)
+                                dpg.set_axis_limits(item, -1, 1)
                                 item = dpg.add_plot_axis(dpg.mvYAxis)
                                 # Add acceleration data in z axis direction.
                                 dpg.add_line_series(
                                     x_axis, initial_data, label='z', 
                                     tag=f'acc{i}_{j}z', parent=dpg.last_item()
                                 )
-                                dpg.set_axis_limits(item, 0, 1)
+                                dpg.set_axis_limits(item, -1, 1)
                             # Create plot for total acceleration data.
                             with dpg.plot(
                                 tag=f'dncr{i+1}_snsr{j}_tot_a',
@@ -194,7 +194,7 @@ class Dashboard:
                                     x_axis, initial_data, label='acc', 
                                     tag=f'tot_a{i}_{j}', parent=dpg.last_item()
                                 )
-                                dpg.set_axis_limits(item, 0, 50)
+                                dpg.set_axis_limits(item, -50, 50)
                                 dpg.add_drag_line(
                                     default_value=30, vertical=False,
                                     label="threshold", color=[255, 0, 0, 255],
@@ -209,7 +209,7 @@ class Dashboard:
                                     tag=f'b_tot_a{i}_{j}', 
                                     parent=dpg.last_item()
                                 )
-                                dpg.set_axis_limits(item, 0, 1)
+                                dpg.set_axis_limits(item, -1, 1)
                             # Create plot for orientation data.
                             with dpg.plot(
                                 tag=f'dncr{i+1}_snsr{j}_ori',
@@ -252,21 +252,21 @@ class Dashboard:
                                     x_axis, initial_data, label='x', 
                                     tag=f'gyr{i}_{j}x', parent=dpg.last_item()
                                 )
-                                dpg.set_axis_limits(item, 0, 1)
+                                dpg.set_axis_limits(item, -1, 1)
                                 item = dpg.add_plot_axis(dpg.mvYAxis)
                                 # Add gyroscope data in y axis direction.
                                 dpg.add_line_series(
                                     x_axis, initial_data, label='y', 
                                     tag=f'gyr{i}_{j}y', parent=dpg.last_item()
                                 )
-                                dpg.set_axis_limits(item, 0, 1)
+                                dpg.set_axis_limits(item, -1, 1)
                                 item = dpg.add_plot_axis(dpg.mvYAxis)
                                 # Add gyroscope data in z axis direction.
                                 dpg.add_line_series(
                                     x_axis, initial_data, label='z', 
                                     tag=f'gyr{i}_{j}z', parent=dpg.last_item()
                                 )
-                                dpg.set_axis_limits(item, 0, 1)
+                                dpg.set_axis_limits(item, -1, 1)
                                 # Create plot for rate of turn data.
                             with dpg.plot(
                                 tag=f'dncr{i+1}_snsr{j}_rot',
@@ -280,7 +280,7 @@ class Dashboard:
                                     x_axis, initial_data, label='rot', 
                                     tag=f'rot{i}_{j}', parent=dpg.last_item()
                                 )
-                                dpg.set_axis_limits(item, 0, 1)
+                                dpg.set_axis_limits(item, -1, 1)
                             # Create plot for magnetomter data.
                             with dpg.plot(
                                 tag=f'dncr{i+1}_snsr{j}_mag',
@@ -294,21 +294,21 @@ class Dashboard:
                                     x_axis, initial_data, label='x', 
                                     tag=f'mag{i}_{j}x', parent=dpg.last_item()
                                 )
-                                dpg.set_axis_limits(item, 0, 1)
+                                dpg.set_axis_limits(item, -1, 1)
                                 item = dpg.add_plot_axis(dpg.mvYAxis)
                                 # Add y axis magnetomter data.
                                 dpg.add_line_series(
                                     x_axis, initial_data, label='y', 
                                     tag=f'mag{i}_{j}y', parent=dpg.last_item()
                                 )
-                                dpg.set_axis_limits(item, 0, 1)
+                                dpg.set_axis_limits(item, -1, 1)
                                 item = dpg.add_plot_axis(dpg.mvYAxis)
                                 # Add z axis magnetomter data.
                                 dpg.add_line_series(
                                     x_axis, initial_data, label='z', 
                                     tag=f'mag{i}_{j}z', parent=dpg.last_item()
                                 )
-                                dpg.set_axis_limits(item, 0, 1)
+                                dpg.set_axis_limits(item, -1, 1)
         # Create file dialog for selecting a log file for plotting.
         with dpg.file_dialog(
             directory_selector=False, show=False,
