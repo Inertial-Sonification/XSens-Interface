@@ -5,7 +5,11 @@ from math import sqrt
 from io import StringIO
 from pathlib import Path
 from time import time, sleep
+import time
 from datetime import datetime
+from scipy.spatial.transform import Rotation as _rot
+import numpy as np
+
 
 # Xsens Device API documentation provided with SDK download:
 # https://www.movella.com/support/software-documentation
@@ -442,6 +446,17 @@ class XdaDevice():
         
         timer = 0
         data_out = StringIO()
+        last_valid_value = [[0 for x in range(3)] for y in range(self.sensors.nSensors)]
+        last_output_value = [[0 for x in range(3)] for y in range(self.sensors.nSensors)]
+        #interpolation_start = [[0 for x in range(3)] for y in range(self.sensors.nSensors)]
+        delta = [[0 for x in range(3)] for y in range(self.sensors.nSensors)]
+        deltaOut = [[0 for x in range(3)] for y in range(self.sensors.nSensors)]
+        north_gimbal_lock = [False for y in range(self.sensors.nSensors)]
+        south_gimbal_lock = [False for y in range(self.sensors.nSensors)]
+        #interpolation_active = [False for y in range(self.sensors.nSensors)]
+        #interpolation_timer = [0 for y in range(self.sensors.nSensors)]
+        
+
         while self.recording:
 
             osc_msg = []
@@ -450,7 +465,10 @@ class XdaDevice():
 
             message = oscbuildparse.OSCMessage('/xsens-nDancers', None, osc_msg)           
             osc_send(message, 'OSC_client')
-            osc_process()      
+            try:
+                osc_process()      
+            except AttributeError:
+                print("osc packet skipped")
 
             osc_msg = []
 
@@ -458,8 +476,10 @@ class XdaDevice():
 
             message = oscbuildparse.OSCMessage('/xsens-nSensors', None, osc_msg)           
             osc_send(message, 'OSC_client')
-            osc_process()      
-
+            try:
+                osc_process()      
+            except AttributeError:
+                print("osc packet skipped")
 
             osc_msg = []
 
@@ -490,8 +510,8 @@ class XdaDevice():
                     osc_msg.append(float(acc_value[0]))
                     osc_msg.append(float(acc_value[1]))
                     osc_msg.append(float(acc_value[2]))
-                    osc_msg.append(round(tot_acc[0], 5))
-                    osc_msg.append(tot_acc[1])
+                    osc_msg.append(float(round(tot_acc[0], 5)))
+                    osc_msg.append(float(tot_acc[1]))
                     self.sensors.send_data(sensor_id, 'acc', acc_value)
                     self.sensors.send_data(sensor_id, 'tot_a', tot_acc)
 
@@ -505,7 +525,7 @@ class XdaDevice():
                     osc_msg.append(float(gyr_value[0]))
                     osc_msg.append(float(gyr_value[1]))
                     osc_msg.append(float(gyr_value[2]))
-                    osc_msg.append(round(rot_value[0], 5))
+                    osc_msg.append(float(round(rot_value[0], 5)))
                     self.sensors.send_data(sensor_id, 'gyr', gyr_value)
                     self.sensors.send_data(sensor_id, 'rot', rot_value)
 
@@ -517,12 +537,91 @@ class XdaDevice():
                     self.sensors.send_data(sensor_id, 'mag', mag_value)
 
                 if packet.containsOrientation():
-                    euler = packet.orientationEuler()
-                    euler_value = [euler.x()/180.0, euler.y()/180.0, euler.z()/180.0]
-                    osc_msg.append(float(euler_value[0]))
-                    osc_msg.append(float(euler_value[1]))
-                    osc_msg.append(float(euler_value[2]))
-                    self.sensors.send_data(sensor_id, 'ori', euler_value)
+                    #euler = packet.orientationEuler()
+                    heading = 0
+                    attitude = 0
+                    bank = 0
+                    #2pi ,pi ,2pi
+                    #euler_value = [ (np.pi)*((float(euler.x())/180.0 +1.0)) , (np.pi)*float(euler.y())/180.0, (np.pi)*((float(euler.z())/180.0 +1.0))]
+                                
+                    q1 = packet.orientationQuaternion()
+                    q1 = [float(q1[0]),-float(q1[1]),float(q1[3]),float(q1[2])]
+
+                    test = q1[1]*q1[2] + q1[3]*q1[0]
+
+                    if (test > 0.49 ): # singularity at north pole
+                        if north_gimbal_lock[sensor-1] == False:
+                            north_gimbal_lock[sensor-1] = True 
+                            #use offset here
+                            delta[sensor-1] = [ 2 * np.arctan2(q1[1],q1[0]) - last_valid_value[sensor-1][0] , 0, 0]
+                            #deltaOut[sensor-1] = [0,0,0]
+
+                        bank =  2 * np.arctan2(q1[1],q1[0]) - delta[sensor-1][0]
+                        attitude =  np.pi/2
+                        heading =  last_valid_value[sensor-1][2]
+	
+                    elif (test < -0.49): # singularity at south pole
+                        if south_gimbal_lock[sensor-1] == False:
+                            south_gimbal_lock[sensor-1] = True 
+                            #use offset here
+                            delta[sensor-1] = [ -2 * np.arctan2(q1[1],q1[0]) - last_valid_value[sensor-1][0] , 0, 0]
+                            #deltaOut[sensor-1] = [0,0,0]
+                            
+                        bank = -2 * np.arctan2(q1[1],q1[0]) - delta[sensor-1][0]
+                        attitude = - np.pi/2 
+                        heading =  last_valid_value[sensor-1][2]
+                    
+                    else:
+                        sqx = q1[1]*q1[1]
+                        sqy = q1[2]*q1[2]
+                        sqz = q1[3]*q1[3]
+                        bank = np.arctan2(2*q1[1]*q1[0]-2*q1[2]*q1[3] , 1 - 2*sqx - 2*sqz)
+                        attitude = np.arcsin(2*test) 
+                        heading = np.arctan2(2*q1[2]*q1[0]-2*q1[1]*q1[3] , 1 - 2*sqy - 2*sqz) 
+                        if north_gimbal_lock[sensor-1] or south_gimbal_lock[sensor-1]:
+                            north_gimbal_lock[sensor-1] = False
+                            south_gimbal_lock[sensor-1] = False
+                            deltaOut[sensor-1] = [ bank - last_output_value[sensor-1][0] , attitude - last_output_value[sensor-1][1], heading - last_output_value[sensor-1][2]]
+
+                        
+                        bank = bank - deltaOut[sensor-1][0]
+                                        #- deltaOut[sensor-1][1]
+                        heading = heading  - deltaOut[sensor-1][2]
+                        
+
+                        '''
+                        #TODO implement a n-frame interpolation state
+                            interpolation_active[sensor-1] = True
+                            interpolation_timer[sensor-1] = time.perf_counter()
+                            interpolation_start[sensor-1] = last_output_value[sensor-1]
+
+                        '''
+                        last_valid_value[sensor-1] = [bank, attitude, heading]
+                    '''
+                    if interpolation_active[sensor-1]:
+                        interp_ms = 100.0
+                        interpVal = (time.perf_counter() - interpolation_timer[sensor-1])*1000.0 / interp_ms
+                        if interpVal >= 1.0:
+                            interpolation_active[sensor-1]=False
+                        else:
+                            bank =  bank * interpVal + (1.0 - interpVal)* interpolation_start[sensor-1][0] 
+                            attitude =  attitude * interpVal + (1.0 - interpVal)* interpolation_start[sensor-1][1] 
+                            heading =  heading * interpVal + (1.0 - interpVal)* interpolation_start[sensor-1][2]
+                    last_output_value[sensor-1] = [bank, attitude, heading]
+ 
+                    '''    
+                    
+
+                    last_output_value[sensor-1] = [bank, attitude, heading]
+
+                    osc_msg.append(float(bank+np.pi))
+                    osc_msg.append(float(attitude+np.pi))
+                    osc_msg.append(float(heading+np.pi))
+                    
+                    
+                   
+                    self.sensors.send_data(sensor_id, 'ori', last_output_value[sensor-1])
+
 
                 message = oscbuildparse.OSCMessage('/xsens', None, osc_msg)
                              

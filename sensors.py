@@ -1,6 +1,5 @@
 # A class for Xsens sensors.
 from math import floor
-
 # https://dearpygui.readthedocs.io/en/latest/
 import dearpygui.dearpygui as dpg
 
@@ -250,8 +249,12 @@ class Sensors:
                         continue
                     lenVec1 = len(dancer[sensor1][current])
                     
+                    #if it's an angle measure take the cosine before doing fft to eliminate discontinuity
                     if lenVec1 >= 32:
-                        fft = np.fft.rfft(dancer[sensor1][current][lenVec1-32:lenVec1])
+                        if 'ori' in current or 'mag' in current:
+                            fft = np.fft.rfft(np.cos(  np.pi * (1.0 + np.asarray(dancer[sensor1][current][lenVec1-32:lenVec1])) ))
+                        else:
+                            fft = np.fft.rfft(dancer[sensor1][current][lenVec1-32:lenVec1])
                         fftAll.append(np.abs(fft))
         return fftAll
 
