@@ -101,7 +101,7 @@ class XdaDevice():
         self.recording = False
         self.acc_threshold = threshold
         self.saveLog = False #Toggle recording data to log
-        
+        self.resetOri = False
         
     def create_control_object(self):
         """create_control_object creates an XsControl object for
@@ -446,13 +446,13 @@ class XdaDevice():
         
         timer = 0
         data_out = StringIO()
-        last_valid_value = [[0 for x in range(3)] for y in range(self.sensors.nSensors)]
-        last_output_value = [[0 for x in range(3)] for y in range(self.sensors.nSensors)]
+        #last_valid_value = [[0 for x in range(3)] for y in range(self.sensors.nSensors)]
+        #last_output_value = [[0 for x in range(3)] for y in range(self.sensors.nSensors)]
         #interpolation_start = [[0 for x in range(3)] for y in range(self.sensors.nSensors)]
-        delta = [[0 for x in range(3)] for y in range(self.sensors.nSensors)]
-        deltaOut = [[0 for x in range(3)] for y in range(self.sensors.nSensors)]
-        north_gimbal_lock = [False for y in range(self.sensors.nSensors)]
-        south_gimbal_lock = [False for y in range(self.sensors.nSensors)]
+        #delta = [[0 for x in range(3)] for y in range(self.sensors.nSensors)]
+        #deltaOut = [[0 for x in range(3)] for y in range(self.sensors.nSensors)]
+        #north_gimbal_lock = [False for y in range(self.sensors.nSensors)]
+        #south_gimbal_lock = [False for y in range(self.sensors.nSensors)]
         #interpolation_active = [False for y in range(self.sensors.nSensors)]
         #interpolation_timer = [0 for y in range(self.sensors.nSensors)]
         
@@ -482,10 +482,13 @@ class XdaDevice():
                 print("osc packet skipped")
 
             osc_msg = []
+            if self.resetOri:
+                self.sensors.resetOrientations()
+                self.resetOri = False
 
             if self.callback.packet_available():
                 packet = self.callback.get_next_packet()
-                
+                 
                 if packet.containsStoredDeviceId():
                     sensor_id = f'{packet.deviceId()}'
                     # Set ID for OSC and txt log as xy whre x is dancer 
@@ -537,90 +540,27 @@ class XdaDevice():
                     self.sensors.send_data(sensor_id, 'mag', mag_value)
 
                 if packet.containsOrientation():
-                    #euler = packet.orientationEuler()
-                    heading = 0
-                    attitude = 0
-                    bank = 0
+                    euler = packet.orientationEuler()
+                    
                     #2pi ,pi ,2pi
-                    #euler_value = [ (np.pi)*((float(euler.x())/180.0 +1.0)) , (np.pi)*float(euler.y())/180.0, (np.pi)*((float(euler.z())/180.0 +1.0))]
+                    euler_value = [ (np.pi)*((float(euler.x())/180.0 +1.0)) , (np.pi)*float(euler.y())/180.0, (np.pi)*((float(euler.z())/180.0 +1.0))]
                                 
                     q1 = packet.orientationQuaternion()
-                    q1 = [float(q1[0]),-float(q1[1]),float(q1[3]),float(q1[2])]
+                    q1 = [float(q1[0]),-float(q1[1]),float(q1[3]),float(q1[2])] #repack quaternion in our reference frame
 
-                    test = q1[1]*q1[2] + q1[3]*q1[0]
+                   
 
-                    if (test > 0.49 ): # singularity at north pole
-                        if north_gimbal_lock[sensor-1] == False:
-                            north_gimbal_lock[sensor-1] = True 
-                            #use offset here
-                            delta[sensor-1] = [ 2 * np.arctan2(q1[1],q1[0]) - last_valid_value[sensor-1][0] , 0, 0]
-                            #deltaOut[sensor-1] = [0,0,0]
-
-                        bank =  2 * np.arctan2(q1[1],q1[0]) - delta[sensor-1][0]
-                        attitude =  np.pi/2
-                        heading =  last_valid_value[sensor-1][2]
-	
-                    elif (test < -0.49): # singularity at south pole
-                        if south_gimbal_lock[sensor-1] == False:
-                            south_gimbal_lock[sensor-1] = True 
-                            #use offset here
-                            delta[sensor-1] = [ -2 * np.arctan2(q1[1],q1[0]) - last_valid_value[sensor-1][0] , 0, 0]
-                            #deltaOut[sensor-1] = [0,0,0]
-                            
-                        bank = -2 * np.arctan2(q1[1],q1[0]) - delta[sensor-1][0]
-                        attitude = - np.pi/2 
-                        heading =  last_valid_value[sensor-1][2]
+                    osc_msg.append(float(euler_value[0]+np.pi))
+                    osc_msg.append(float(euler_value[1]+np.pi))
+                    osc_msg.append(float(euler_value[2]+np.pi))
                     
-                    else:
-                        sqx = q1[1]*q1[1]
-                        sqy = q1[2]*q1[2]
-                        sqz = q1[3]*q1[3]
-                        bank = np.arctan2(2*q1[1]*q1[0]-2*q1[2]*q1[3] , 1 - 2*sqx - 2*sqz)
-                        attitude = np.arcsin(2*test) 
-                        heading = np.arctan2(2*q1[2]*q1[0]-2*q1[1]*q1[3] , 1 - 2*sqy - 2*sqz) 
-                        if north_gimbal_lock[sensor-1] or south_gimbal_lock[sensor-1]:
-                            north_gimbal_lock[sensor-1] = False
-                            south_gimbal_lock[sensor-1] = False
-                            deltaOut[sensor-1] = [ bank - last_output_value[sensor-1][0] , attitude - last_output_value[sensor-1][1], heading - last_output_value[sensor-1][2]]
-
-                        
-                        bank = bank - deltaOut[sensor-1][0]
-                                        #- deltaOut[sensor-1][1]
-                        heading = heading  - deltaOut[sensor-1][2]
-                        
-
-                        '''
-                        #TODO implement a n-frame interpolation state
-                            interpolation_active[sensor-1] = True
-                            interpolation_timer[sensor-1] = time.perf_counter()
-                            interpolation_start[sensor-1] = last_output_value[sensor-1]
-
-                        '''
-                        last_valid_value[sensor-1] = [bank, attitude, heading]
-                    '''
-                    if interpolation_active[sensor-1]:
-                        interp_ms = 100.0
-                        interpVal = (time.perf_counter() - interpolation_timer[sensor-1])*1000.0 / interp_ms
-                        if interpVal >= 1.0:
-                            interpolation_active[sensor-1]=False
-                        else:
-                            bank =  bank * interpVal + (1.0 - interpVal)* interpolation_start[sensor-1][0] 
-                            attitude =  attitude * interpVal + (1.0 - interpVal)* interpolation_start[sensor-1][1] 
-                            heading =  heading * interpVal + (1.0 - interpVal)* interpolation_start[sensor-1][2]
-                    last_output_value[sensor-1] = [bank, attitude, heading]
- 
-                    '''    
-                    
-
-                    last_output_value[sensor-1] = [bank, attitude, heading]
-
-                    osc_msg.append(float(bank+np.pi))
-                    osc_msg.append(float(attitude+np.pi))
-                    osc_msg.append(float(heading+np.pi))
-                    
+                    osc_msg.append(float(q1[0]))
+                    osc_msg.append(float(q1[1]))
+                    osc_msg.append(float(q1[2]))
+                    osc_msg.append(float(q1[3]))
                     
                    
-                    self.sensors.send_data(sensor_id, 'ori', last_output_value[sensor-1])
+                    self.sensors.send_data(sensor_id, 'ori', [(euler_value[0]),(euler_value[1]),(euler_value[2])])
 
 
                 message = oscbuildparse.OSCMessage('/xsens', None, osc_msg)
@@ -650,16 +590,44 @@ class XdaDevice():
 
                     osc_msg = []
 
+                    osc_msg_fft_stats = []
+
                     ffts = self.sensors.calculate_fft()
+                   
                     for fft in ffts:
                         for val in fft:
                             osc_msg.append(round(float(val),5))       
+
+                        
+
+                        idxMax =  1+np.argmax(fft[1:])
+                        if (fft[idxMax] < 0.35):
+                            idxMax=0
+
+                        #assemble for statistics
+
+                        stats = []
+                        for i, bin in enumerate(fft[1:]):
+                            stats.extend( [i+1] * int(bin * 10) )
+                            
+                            
+                        if len(stats)>0 and idxMax>0:
+                            osc_msg_fft_stats.append(round(float(np.std(stats)/len(fft)),5))
+                        else:
+                            osc_msg_fft_stats.append(round(float(0),5))
+                        
+                        osc_msg_fft_stats.append(round(float(idxMax)/len(fft),5))
+                        
 
                     message = oscbuildparse.OSCMessage('/xsens-fft', None, osc_msg)
                              
                     osc_send(message, 'OSC_client')
                     osc_process()   
 
+                    message = oscbuildparse.OSCMessage('/xsens-fft-stats', None, osc_msg_fft_stats)
+                             
+                    osc_send(message, 'OSC_client')
+                    osc_process()   
 
                     osc_msg = []
 

@@ -134,6 +134,10 @@ class Sensors:
         self.nSensors = len(self.dancers[0])
         self.nDancers = len(self.dancers)
     
+    def resetOrientations(self):
+        for i, sensor in enumerate(self.sensors):
+            sensor.resetOrientation(4)
+
     def set_ids(self):
         """set_ids sets sensor IDs to the dashboard and to
         self.minmax dictionary list used for data scaling.
@@ -251,8 +255,11 @@ class Sensors:
                     
                     #if it's an angle measure take the cosine before doing fft to eliminate discontinuity
                     if lenVec1 >= 32:
-                        if 'ori' in current or 'mag' in current:
-                            fft = np.fft.rfft(np.cos(  np.pi * (1.0 + np.asarray(dancer[sensor1][current][lenVec1-32:lenVec1])) ))
+                        if 'ori' in current: 
+                            fft = np.fft.rfft(np.cos(2* np.asarray(dancer[sensor1][current][lenVec1-32:lenVec1])))
+                        elif 'mag' in current:
+                            fft = np.fft.rfft(np.cos( 2* np.pi * (1.0 + np.asarray(dancer[sensor1][current][lenVec1-32:lenVec1])) ))
+
                         else:
                             fft = np.fft.rfft(dancer[sensor1][current][lenVec1-32:lenVec1])
                         fftAll.append(np.abs(fft))

@@ -77,7 +77,9 @@ class Dashboard:
                     target=self.main_device.recording_loop, daemon=True
             )
             recording_loop_thread.start()  
-            
+    
+    def reset_orientation(self, sender, app_data):
+        self.main_device.resetOri = True 
     
     def exit_program(self, sender, app_data):
         
@@ -117,6 +119,9 @@ class Dashboard:
                 label='Plot txt log file', callback=self.show_file_dialog
             )
             dpg.add_button(label='Quit', callback=self.exit_program)
+            dpg.add_button(
+                label='Reset Orientation', callback=self.reset_orientation
+            )
             dpg.add_text(
                 'Use mouse to scroll down program message history. First'
                 ' message is in the bottom row.'
@@ -124,6 +129,7 @@ class Dashboard:
             dpg.add_input_text(
                 tag='program_status', width=vp_width, multiline=True
             )
+            
         # Create sensor status display window.
         with dpg.window(
             label='Sensor status panel', pos=(25,195), width=vp_width
