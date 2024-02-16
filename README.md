@@ -9,12 +9,8 @@ TODO:
   (as are the serial numbers, maybe create a separate file for storing scanned sensors and associations, and implement a QR reader)
 - fix visualizaitons to respect ordering (draw data of the same sensor in the same row)
 - fix the visualization impossible to scroll to see all data plots on laptop monitors
-- CALIBRATION!!!!!!!!!!!!!!!!!! sensors differ in calibration, try to stack up 2 or more sensors and look at orientation (euler) angles, the zero reference is different between sensors
-- CALIBRATION 2!!!!!!!!!!!!!!!! fix acceleration and gyro (angular velocity) zero reference, to see this leave the sensors still, no matter the orientation (doesn't depend on force of gravity direction), the values are all diferent and non zero (not even close to zero, usually around 0.5 but even that differs between direcitons!!!!!!!!!!!!!!!!!!!!) as well as aforementioned angular velocities, they are NEVER zero (not even oscillating near it!!!)
-  
- >> IF THERE IS NO COMPUTATIONAL SOLUTION FOR CALIBRATION, 3D PRINT A CASING STRUCTURE TO STACK THE SENSORS IN THE SAME ORIENTATION IN ORDER TO DO A CALIBRATION 
 
-  
+
 
 // ORIGINAL README:
 
