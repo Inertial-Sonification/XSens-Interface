@@ -1,5 +1,6 @@
 # A class for an Xsens main device and attached sensors.
 import sys
+import threading
 import time
 from math import sqrt
 from io import StringIO
@@ -102,6 +103,12 @@ class XdaDevice():
         self.acc_threshold = threshold
         self.saveLog = False #Toggle recording data to log
         self.resetOri = False
+        self.oscTime = time.time()
+
+       # self.samplingTime = time.time()
+       # self.hasData = False
+        #self.lock = threading.Lock()
+        self.dataDict = {}
         
     def create_control_object(self):
         """create_control_object creates an XsControl object for
@@ -429,6 +436,158 @@ class XdaDevice():
         )
         print('Use the "Recording on/off" button to stop\n')
 
+
+
+    def measuring_loop(self):
+        while self.recording:    
+            
+            if self.resetOri:
+                self.sensors.resetOrientations()
+                self.resetOri = False
+
+            if self.callback.packet_available():
+                packet = self.callback.get_next_packet()
+                 
+                if packet.containsStoredDeviceId():
+                    sensor_id = f'{packet.deviceId()}'
+                    # Set ID for OSC and txt log as xy whre x is dancer 
+                    # number and y is sensor number: 1 for left, 2 for 
+                    # right and 3 for torso.
+                    dancer = self.sensors.locations[sensor_id][1]
+                    sensor = self.sensors.locations[sensor_id][2]
+                    
+                    osc_id = dancer * 10 + sensor
+
+
+                    if sensor_id not in self.dataDict.keys():
+                        #self.lock.acquire()
+                        self.dataDict[sensor_id]=[]
+                        self.dataDict[sensor_id].append(osc_id)
+                        self.dataDict[sensor_id].append(time.time())
+                        #self.lock.release()
+                        continue
+
+                    out_data = []
+                    # ###################################################
+                    #measure real sampling rate
+                    timeNow = time.time()                
+                    fSamp = timeNow- self.dataDict[sensor_id][1]
+                    if fSamp>0.0:
+                        fSamp = 1.0 / fSamp
+                    else:
+                        continue
+                    fSamp = fSamp/2 #nyquist freq
+
+                    if fSamp > 32.0:
+                        continue
+
+                    out_data.append(osc_id)
+                    out_data.append(timeNow)
+                    out_data.append(fSamp)
+                    # ###################################################                    
+                    
+
+                    completePacket = True
+
+                    if packet.containsCalibratedData():
+                        acc = packet.freeAcceleration()/100.0
+                        acc_value = acc
+                        acc_value = [round(val, 5) for val in acc_value]
+                        tot_acc = [sqrt(acc[0]**2 + acc[1]**2 + acc[2]**2)]
+                        check_threshold = tot_acc[0] > self.acc_threshold
+                        if check_threshold and time() - accelerationTimer > self.acc_threshold:
+                            tot_acc.append(1)
+                            accelerationTimer = time()
+                        else:
+                            tot_acc.append(0)
+
+                        out_data.append(float(acc_value[0]))
+                        out_data.append(float(acc_value[1]))
+                        out_data.append(float(acc_value[2]))
+                        out_data.append(float(round(tot_acc[0], 5)))
+                        out_data.append(float(tot_acc[1]))
+                        
+                        gyr = packet.calibratedGyroscopeData()
+                        gyr_value = [gyr[0], gyr[1], gyr[2]]
+                        rot_value = sqrt(gyr[0]**2 + gyr[1]**2 + gyr[2]**2)
+                        gyr_value = [round(val, 5) for val in gyr_value]
+                        
+                        out_data.append(float(gyr_value[0]))
+                        out_data.append(float(gyr_value[1]))
+                        out_data.append(float(gyr_value[2]))
+                        out_data.append(float(round(rot_value, 5)))
+                       
+                        mag = packet.calibratedMagneticField()
+                        mag_value = mag 
+                        out_data.append(float(round(mag_value[0],5)))
+                        out_data.append(float(round(mag_value[1],5)))
+                        out_data.append(float(round(mag_value[2],5)))
+
+                        self.sensors.send_data(sensor_id, 'acc', acc_value)
+                        self.sensors.send_data(sensor_id, 'tot_a', tot_acc)
+                        self.sensors.send_data(sensor_id, 'gyr', gyr_value)
+                        self.sensors.send_data(sensor_id, 'rot', [rot_value])
+                        self.sensors.send_data(sensor_id, 'mag', mag_value)
+
+
+
+                    else:
+                        completePacket = False
+
+
+                    if packet.containsOrientation():
+                        euler = packet.orientationEuler()
+                        
+                        #2pi ,pi ,2pi
+                        euler_value = [ (np.pi)*((float(euler.x())/180.0 +1.0)) , (np.pi)*float(euler.y())/180.0, (np.pi)*((float(euler.z())/180.0 +1.0))]
+                                    
+                        q1 = packet.orientationQuaternion()
+                        q1 = [float(q1[0]),-float(q1[1]),float(q1[3]),float(q1[2])] #repack quaternion in our reference frame
+
+                    
+
+                        out_data.append(float(euler_value[0]))
+                        out_data.append(float(euler_value[1]))
+                        out_data.append(float(euler_value[2]))
+                        
+                        out_data.append(float(q1[0]))
+                        out_data.append(float(q1[1]))
+                        out_data.append(float(q1[2]))
+                        out_data.append(float(q1[3]))
+                        self.sensors.send_data(sensor_id, 'ori', [(euler_value[0]),(euler_value[1]),(euler_value[2])])
+
+                    else:
+                        completePacket = False                        
+                    
+                
+
+                    
+            
+
+                    if sensor == 1 and dancer == 1:
+                        correlations = self.sensors.calculate_correlation_self()
+                        ffts = self.sensors.calculate_fft()
+                        out_data.append(correlations)
+                        out_data.append(ffts)                  
+                        correlations = self.sensors.calculate_correlation_others()
+                        out_data.append(correlations)
+
+                        
+                        
+
+                    
+                    if completePacket:
+                        
+
+                        #self.lock.acquire()
+                        self.dataDict[sensor_id] = out_data
+                        #self.lock.release()
+
+
+
+
+
+
     
     def recording_loop(self, timeout=0.2):
         """recording_loop takes care of live data recording and
@@ -444,7 +603,7 @@ class XdaDevice():
             threshold surpassing total acceleration value.
         """
         
-        timer = 0
+        accelerationTimer = 0
         data_out = StringIO()
         #last_valid_value = [[0 for x in range(3)] for y in range(self.sensors.nSensors)]
         #last_output_value = [[0 for x in range(3)] for y in range(self.sensors.nSensors)]
@@ -455,9 +614,22 @@ class XdaDevice():
         #south_gimbal_lock = [False for y in range(self.sensors.nSensors)]
         #interpolation_active = [False for y in range(self.sensors.nSensors)]
         #interpolation_timer = [0 for y in range(self.sensors.nSensors)]
-        
+        keyIndex = 0
 
         while self.recording:
+            if len(self.dataDict.keys())==0:
+                continue
+            
+            
+            sensor_id = list(self.dataDict.keys())[keyIndex]
+
+
+
+
+
+            localTime = time.time()
+            delta = localTime-self.oscTime
+            self.oscTime = localTime
 
             osc_msg = []
         
@@ -481,130 +653,111 @@ class XdaDevice():
             except AttributeError:
                 print("osc packet skipped")
 
+            #for sensor_id in self.dataDict.keys():
+            
+            #self.lock.acquire()
+            #here we have to re-check that the sensor_id is still available because of the non-lock nature of the check in for loop
+            if sensor_id in self.dataDict.keys():
+                tempData = self.dataDict[sensor_id]
+                if len(tempData)>=22:
+                    data=tempData
+                else:
+                    data=[]
+            else:
+                data=[]
+            #self.lock.release()
+
+            if data == []:
+                continue
+
             osc_msg = []
-            if self.resetOri:
-                self.sensors.resetOrientations()
-                self.resetOri = False
 
-            if self.callback.packet_available():
-                packet = self.callback.get_next_packet()
-                 
-                if packet.containsStoredDeviceId():
-                    sensor_id = f'{packet.deviceId()}'
-                    # Set ID for OSC and txt log as xy whre x is dancer 
-                    # number and y is sensor number: 1 for left, 2 for 
-                    # right and 3 for torso.
-                    dancer = self.sensors.locations[sensor_id][1]
-                    sensor = self.sensors.locations[sensor_id][2]
-                    osc_id = dancer * 10 + sensor
-                    osc_msg.append(osc_id)
-
-                if packet.containsCalibratedData():
-                    acc = packet.freeAcceleration()/100.0
-                    acc_value = acc
-                    acc_value = [round(val, 5) for val in acc_value]
-                    tot_acc = [sqrt(acc[0]**2 + acc[1]**2 + acc[2]**2)]
-                    check_threshold = tot_acc[0] > self.acc_threshold
-                    if check_threshold and time() - timer > self.acc_threshold:
-                        tot_acc.append(1)
-                        timer = time()
-                    else:
-                        tot_acc.append(0)
-                    osc_msg.append(float(acc_value[0]))
-                    osc_msg.append(float(acc_value[1]))
-                    osc_msg.append(float(acc_value[2]))
-                    osc_msg.append(float(round(tot_acc[0], 5)))
-                    osc_msg.append(float(tot_acc[1]))
-                    self.sensors.send_data(sensor_id, 'acc', acc_value)
-                    self.sensors.send_data(sensor_id, 'tot_a', tot_acc)
-
-                    gyr = packet.calibratedGyroscopeData()
-                    gyr_value = [gyr[0], gyr[1], gyr[2]]
-                    rot_value = self.sensors.scale_data(
-                        sensor_id, 'rot',
-                        [sqrt(gyr[0]**2 + gyr[1]**2 + gyr[2]**2)]
-                    )
-                    gyr_value = [round(val, 5) for val in gyr_value]
-                    osc_msg.append(float(gyr_value[0]))
-                    osc_msg.append(float(gyr_value[1]))
-                    osc_msg.append(float(gyr_value[2]))
-                    osc_msg.append(float(round(rot_value[0], 5)))
-                    self.sensors.send_data(sensor_id, 'gyr', gyr_value)
-                    self.sensors.send_data(sensor_id, 'rot', rot_value)
-
-                    mag = packet.calibratedMagneticField()
-                    mag_value = mag 
-                    osc_msg.append(float(round(mag_value[0],5)))
-                    osc_msg.append(float(round(mag_value[1],5)))
-                    osc_msg.append(float(round(mag_value[2],5)))
-                    self.sensors.send_data(sensor_id, 'mag', mag_value)
-
-                if packet.containsOrientation():
-                    euler = packet.orientationEuler()
-                    
-                    #2pi ,pi ,2pi
-                    euler_value = [ (np.pi)*((float(euler.x())/180.0 +1.0)) , (np.pi)*float(euler.y())/180.0, (np.pi)*((float(euler.z())/180.0 +1.0))]
-                                
-                    q1 = packet.orientationQuaternion()
-                    q1 = [float(q1[0]),-float(q1[1]),float(q1[3]),float(q1[2])] #repack quaternion in our reference frame
-
-                   
-
-                    osc_msg.append(float(euler_value[0]+np.pi))
-                    osc_msg.append(float(euler_value[1]+np.pi))
-                    osc_msg.append(float(euler_value[2]+np.pi))
-                    
-                    osc_msg.append(float(q1[0]))
-                    osc_msg.append(float(q1[1]))
-                    osc_msg.append(float(q1[2]))
-                    osc_msg.append(float(q1[3]))
-                    
-                   
-                    self.sensors.send_data(sensor_id, 'ori', [(euler_value[0]),(euler_value[1]),(euler_value[2])])
+            osc_msg.append(data[0])
+            osc_msg.append(data[3])
+            osc_msg.append(data[4])
+            osc_msg.append(data[5])
+            osc_msg.append(data[6])
+            osc_msg.append(data[7])
+            
 
 
-                message = oscbuildparse.OSCMessage('/xsens', None, osc_msg)
-                             
+            osc_msg.append(data[8])
+            osc_msg.append(data[9])
+            osc_msg.append(data[10])
+            osc_msg.append(data[11])
+            
+            
+            
+            osc_msg.append(data[12])
+            osc_msg.append(data[13])
+            osc_msg.append(data[14])
+
+            
+
+            osc_msg.append(float(data[15]+np.pi))
+            osc_msg.append(float(data[16]+np.pi))
+            osc_msg.append(float(data[17]+np.pi))
+            
+            osc_msg.append(data[18])
+            osc_msg.append(data[19])
+            osc_msg.append(data[20])
+            osc_msg.append(data[21])
+                
+                
+
+
+            message = oscbuildparse.OSCMessage('/xsens', None, osc_msg)
+                            
+            osc_send(message, 'OSC_client')
+            try:
+                osc_process()      
+            except AttributeError:
+                print("osc packet skipped")
+            if self.saveLog:
+                # Write data to a line in data_out.
+                osc_str = [f'{elem}: ' for elem in osc_msg]
+                for index, val in enumerate(osc_str):
+                    data_out.write(osc_str[index])
+                data_out.write('\n')   
+
+            dancer = self.sensors.locations[sensor_id][1]
+            sensor = self.sensors.locations[sensor_id][2]
+            if sensor == 1 and dancer == 1:
+                osc_msg = []
+
+                correlations = data[22]
+                for corr_value in correlations:
+                    osc_msg.append(round(float(corr_value[1]),5))
+
+                message = oscbuildparse.OSCMessage('/xsens-correlation-self', None, osc_msg)
+                            
                 osc_send(message, 'OSC_client')
-                osc_process()  
-
-                if self.saveLog:
-                    # Write data to a line in data_out.
-                    osc_str = [f'{elem}: ' for elem in osc_msg]
-                    for index, val in enumerate(osc_str):
-                        data_out.write(osc_str[index])
-                    data_out.write('\n')   
-
-
-                if sensor == 1 and dancer == 1:
-                    osc_msg = []
-
-                    correlations = self.sensors.calculate_correlation_self()
-                    for corr_value in correlations:
-                        osc_msg.append(round(float(corr_value[1]),5))       
-
-                    message = oscbuildparse.OSCMessage('/xsens-correlation-self', None, osc_msg)
-                             
-                    osc_send(message, 'OSC_client')
+                try:
                     osc_process()      
+                except AttributeError:
+                    print("osc packet skipped")
+                osc_msg = []
 
-                    osc_msg = []
+                osc_msg_fft_stats = []
 
-                    osc_msg_fft_stats = []
+                ffts = data[23]
+                
+                for fft in ffts:
+                    for val in fft:
+                        osc_msg.append(round(float(val),5))       
 
-                    ffts = self.sensors.calculate_fft()
-                   
-                    for fft in ffts:
-                        for val in fft:
-                            osc_msg.append(round(float(val),5))       
+                    
 
-                        
+                    idxMax =  1+np.argmax(fft[1:])
+                    energyAtIdx=fft[idxMax]
 
-                        idxMax =  1+np.argmax(fft[1:])
-                        if (fft[idxMax] < 0.35):
-                            idxMax=0
+                    if (energyAtIdx < 0.35):
+                        idxMax=0
 
-                        #assemble for statistics
+                    #assemble for statistics
+                    totalEnergy = abs(fft[1:].sum())
+                    
+                    if totalEnergy>0.999 and energyAtIdx>0.35:
 
                         stats = []
                         for i, bin in enumerate(fft[1:]):
@@ -617,32 +770,44 @@ class XdaDevice():
                             osc_msg_fft_stats.append(round(float(0),5))
                         
                         osc_msg_fft_stats.append(round(float(idxMax)/len(fft),5))
-                        
+                    
+                    else:
+                        osc_msg_fft_stats.append(round(float(0),5))
+                        osc_msg_fft_stats.append(round(float(0),5))
 
-                    message = oscbuildparse.OSCMessage('/xsens-fft', None, osc_msg)
-                             
-                    osc_send(message, 'OSC_client')
-                    osc_process()   
 
-                    message = oscbuildparse.OSCMessage('/xsens-fft-stats', None, osc_msg_fft_stats)
-                             
-                    osc_send(message, 'OSC_client')
-                    osc_process()   
+                message = oscbuildparse.OSCMessage('/xsens-fft', None, osc_msg)
+                            
+                osc_send(message, 'OSC_client')
+                try:
+                    osc_process()      
+                except AttributeError:
+                    print("osc packet skipped")
+                message = oscbuildparse.OSCMessage('/xsens-fft-stats', None, osc_msg_fft_stats)
+                            
+                osc_send(message, 'OSC_client')
+                try:
+                    osc_process()      
+                except AttributeError:
+                    print("osc packet skipped")
+                osc_msg = []
 
-                    osc_msg = []
+                correlations = data[24]
+                for corr_value in correlations:
+                    osc_msg.append(round(float(corr_value[1]),5))       
 
-                    correlations = self.sensors.calculate_correlation_others()
-                    for corr_value in correlations:
-                        osc_msg.append(round(float(corr_value[1]),5))       
-
-                    message = oscbuildparse.OSCMessage('/xsens-correlation-others', None, osc_msg)
-                             
-                    osc_send(message, 'OSC_client')
-                    osc_process()   
-
+                message = oscbuildparse.OSCMessage('/xsens-correlation-others', None, osc_msg)
+                            
+                osc_send(message, 'OSC_client')
+                try:
+                    osc_process()      
+                except AttributeError:
+                    print("osc packet skipped")
             # Check sensor status and set it to the dashboard.
             self.sensors.status(self.sensors.sensors)
-            
+            keyIndex=keyIndex+1
+            keyIndex%=len(self.dataDict.keys())
+
         # Recording stopped from the dashboard button.
         osc_terminate()
         self.sensors.status(self.sensors.sensors, finished=True)

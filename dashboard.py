@@ -76,7 +76,11 @@ class Dashboard:
             recording_loop_thread = threading.Thread(
                     target=self.main_device.recording_loop, daemon=True
             )
-            recording_loop_thread.start()  
+            measuring_loop_thread = threading.Thread(
+                target=self.main_device.measuring_loop, daemon=True
+            )
+            recording_loop_thread.start()
+            measuring_loop_thread.start()
     
     def reset_orientation(self, sender, app_data):
         self.main_device.resetOri = True 
