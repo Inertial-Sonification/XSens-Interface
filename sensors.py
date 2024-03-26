@@ -2,7 +2,7 @@
 from math import floor
 # https://dearpygui.readthedocs.io/en/latest/
 import dearpygui.dearpygui as dpg
-
+from librosa.feature.spectral import mfcc
 import numpy as np
 
 def dancers(number_of_dancers=1, number_of_sensors=3):
@@ -241,6 +241,29 @@ class Sensors:
                    f'b_{data_type}{k}_{s}',
                    y=self.dancers.dancers[k][f'snsr_{s}'][f'b_{data_type}']
                 )
+
+    def calculate_mfcc(self, fs):
+        mfccAll =[]
+
+        for dancer in self.dancers:
+            for i in range(1, self.nSensors+1):
+                sensor1 = f'snsr_{i}'
+                for current in dancer[sensor1]:
+                    if current == 'tot_a' or current == 'b_tot_a' or current == 'rot' or ('correlation' in current):
+                        continue
+                    lenVec1 = len(dancer[sensor1][current])
+                    
+                    #if it's an angle measure take the cosine before doing fft to eliminate discontinuity
+                    if lenVec1 >= 32:
+                        if 'ori' in current: 
+                            cc = mfcc(y=np.cos(2* np.asarray(dancer[sensor1][current][lenVec1-32:lenVec1])), sr=fs, n_fft=32, n_mfcc=13)
+                        elif 'mag' in current:
+                            cc = mfcc(y=np.cos( 2* np.pi * (1.0 + np.asarray(dancer[sensor1][current][lenVec1-32:lenVec1])) ), sr=fs, n_fft=32, n_mfcc=13)
+
+                        else:
+                            cc = mfcc(y=dancer[sensor1][current][lenVec1-32:lenVec1], sr=fs, n_fft=32, n_mfcc=13)
+                        mfccAll.append(np.abs(cc))
+        return mfccAll
 
     def calculate_fft(self):
         fftAll =[]
